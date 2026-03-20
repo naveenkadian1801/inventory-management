@@ -8,6 +8,47 @@
     <div v-if="loading" class="loading">{{ t('common.loading') }}</div>
     <div v-else-if="error" class="error">{{ error }}</div>
     <div v-else>
+      <!-- Submitted Restocking Orders section — only visible when restocking orders exist -->
+      <div v-if="restockOrders.length > 0" class="restock-section">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">{{ t('ordersRestocking.title') }}</h3>
+          </div>
+          <div class="table-container">
+            <table class="orders-table">
+              <thead>
+                <tr>
+                  <th class="col-order-number">{{ t('ordersRestocking.table.orderNumber') }}</th>
+                  <th class="col-customer">{{ t('ordersRestocking.table.warehouse') }}</th>
+                  <th class="col-items">{{ t('ordersRestocking.table.items') }}</th>
+                  <th class="col-status">{{ t('ordersRestocking.table.status') }}</th>
+                  <th class="col-date">{{ t('ordersRestocking.table.orderDate') }}</th>
+                  <th class="col-date">{{ t('ordersRestocking.table.expectedDelivery') }}</th>
+                  <th class="col-date">{{ t('ordersRestocking.table.leadTime') }}</th>
+                  <th class="col-value">{{ t('ordersRestocking.table.totalValue') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="order in restockOrders" :key="order.order_number">
+                  <td class="col-order-number"><strong>{{ order.order_number }}</strong></td>
+                  <td class="col-customer">{{ order.warehouse }}</td>
+                  <td class="col-items">{{ order.items.length }}</td>
+                  <td class="col-status">
+                    <span :class="['badge', getOrderStatusClass(order.status)]">
+                      {{ order.status }}
+                    </span>
+                  </td>
+                  <td class="col-date">{{ formatDate(order.order_date) }}</td>
+                  <td class="col-date">{{ formatDate(order.expected_delivery) }}</td>
+                  <td class="col-date">{{ t('ordersRestocking.leadTimeDays') }}</td>
+                  <td class="col-value"><strong>{{ currencySymbol }}{{ order.total_value.toLocaleString() }}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div class="stats-grid">
         <div class="stat-card success">
           <div class="stat-label">{{ t('status.delivered') }}</div>
@@ -95,6 +136,7 @@ export default {
     const loading = ref(true)
     const error = ref(null)
     const orders = ref([])
+    const restockOrders = ref([])
 
     // Use shared filters
     const {
@@ -124,9 +166,20 @@ export default {
       }
     }
 
+    const loadRestockOrders = async () => {
+      try {
+        restockOrders.value = await api.getRestockOrders()
+      } catch (err) {
+        // Non-fatal: restocking section stays hidden on error
+        console.error('Failed to load restock orders:', err)
+        restockOrders.value = []
+      }
+    }
+
     // Watch for filter changes and reload data
     watch([selectedPeriod, selectedLocation, selectedCategory, selectedStatus], () => {
       loadOrders()
+      loadRestockOrders()
     })
 
     const getOrdersByStatus = (status) => {
@@ -153,13 +206,17 @@ export default {
       })
     }
 
-    onMounted(loadOrders)
+    onMounted(() => {
+      loadOrders()
+      loadRestockOrders()
+    })
 
     return {
       t,
       loading,
       error,
       orders,
+      restockOrders,
       getOrdersByStatus,
       getOrderStatusClass,
       formatDate,
@@ -172,6 +229,11 @@ export default {
 </script>
 
 <style scoped>
+/* Restocking section spacing */
+.restock-section {
+  margin-bottom: 1.5rem;
+}
+
 /* Fixed table layout to prevent column shifting */
 .orders-table {
   table-layout: fixed;
